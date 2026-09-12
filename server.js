@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
@@ -7,17 +6,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'data.json');
 
-// Comma-separated list of allowed origins, e.g.
-// ALLOWED_ORIGINS=https://laroche-customer.netlify.app,https://laroche-waiter.netlify.app
-// Leave unset (or "*") during testing to allow any origin.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+// Manual CORS handling — allows any origin, no external package needed
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
-app.use(cors({
-  origin: ALLOWED_ORIGINS.includes('*') ? true : ALLOWED_ORIGINS
-}));
 app.use(express.json());
 
 function loadDB() {
@@ -40,13 +39,11 @@ app.get('/', (req, res) => {
   res.json({ ok: true, service: 'laroche-cafe-backend' });
 });
 
-// List all calls (pending + resolved)
 app.get('/api/calls', (req, res) => {
   const db = loadDB();
   res.json(db.calls);
 });
 
-// Create a new pending call
 app.post('/api/calls', (req, res) => {
   const table_number = Number(req.body.table_number);
   if (!Number.isInteger(table_number) || table_number < 1 || table_number > 25) {
@@ -65,7 +62,6 @@ app.post('/api/calls', (req, res) => {
   res.status(201).json(call);
 });
 
-// Mark a call resolved
 app.patch('/api/calls/:id', (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body;
