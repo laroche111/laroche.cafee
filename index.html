@@ -374,19 +374,19 @@ const WAIT_DICT = {
     completed:"Tamamlanan Çağrılar", resolve:"Tamamlandı", called:"çağrıldı", agoSuffix:"önce", justNow:"az önce",
     print:"Yazdırma Sayfası", backToDash:"← Panele dön", backToCustomer:"← Müşteri uygulamasına dön",
     printTitle:"Masa QR Kodları", customerUrlLabel:"Müşteri uygulaması adresi", printBtn:"Yazdır", table:"Masa",
-    voiceTablePrefix:"Masa" },
+    voiceTablePrefix:"Garson, masa" },
   ar:{ dashTitle:"لوحة النادل", brandLine:"لاروش كافيه", enableSound:"تفعيل الصوت", soundOn:"الصوت مفعّل ✓",
     pending:"الطلبات المعلّقة", noPending:"لا توجد طلبات معلّقة", noPendingSub:"ستظهر الطلبات الجديدة هنا فوراً",
     completed:"الطلبات المكتملة", resolve:"تم الحل", called:"تم الاستدعاء", agoSuffix:"مضت", justNow:"الآن",
     print:"صفحة الطباعة", backToDash:"← العودة للوحة", backToCustomer:"← رجوع لتطبيق العملاء",
     printTitle:"رموز QR للطاولات", customerUrlLabel:"رابط تطبيق العملاء", printBtn:"طباعة", table:"طاولة",
-    voiceTablePrefix:"طاولة" },
+    voiceTablePrefix:"يا جارسون، طاولة" },
   en:{ dashTitle:"Waiter Dashboard", brandLine:"LAROCHE CAFE", enableSound:"Enable Sound", soundOn:"Sound on ✓",
     pending:"Pending Calls", noPending:"No pending calls", noPendingSub:"New calls will appear here instantly.",
     completed:"Completed calls", resolve:"Resolved", called:"called", agoSuffix:"ago", justNow:"just now",
     print:"Print Page", backToDash:"← Back to dashboard", backToCustomer:"← Back to customer app",
     printTitle:"Table QR Codes", customerUrlLabel:"Customer app URL", printBtn:"Print", table:"Table",
-    voiceTablePrefix:"Table" }
+    voiceTablePrefix:"Waiter, table" }
 };
 const VOICE_LOCALE = { tr:'tr-TR', ar:'ar-SA', en:'en-GB' };
 let waitLang = 'tr';
@@ -404,16 +404,19 @@ function playChime(){
     const gain = audioCtx.createGain();
     osc.type = 'sine'; osc.frequency.value = freq;
     gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(0.22, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35);
+    gain.gain.linearRampToValueAtTime(0.9, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45);
     osc.connect(gain).connect(audioCtx.destination);
-    osc.start(start); osc.stop(start + 0.4);
+    osc.start(start); osc.stop(start + 0.5);
   });
 }
 function speakTable(n){
   if(!('speechSynthesis' in window)) return;
   const utter = new SpeechSynthesisUtterance(`${wt('voiceTablePrefix')} ${n}`);
   utter.lang = VOICE_LOCALE[waitLang];
+  utter.volume = 1;
+  utter.rate = 0.95;
+  utter.pitch = 1;
   const voices = speechSynthesis.getVoices();
   const match = voices.find(v=>v.lang===VOICE_LOCALE[waitLang]) || voices.find(v=>v.lang && v.lang.startsWith(waitLang));
   if(match) utter.voice = match;
