@@ -399,33 +399,38 @@ let audioCtx = null;
 function playChime(){
   if(!audioCtx) return;
   const now = audioCtx.currentTime;
-  [[880, now], [1175, now + 0.16]].forEach(([freq, start])=>{
+  const ringDuration = 2; // seconds, fast repeating bell
+  const ringGap = 0.22; // time between the start of each ring
+  const ringCount = Math.ceil(ringDuration / ringGap);
+  for(let i = 0; i < ringCount; i++){
+    const start = now + i * ringGap;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    osc.type = 'sine'; osc.frequency.value = freq;
+    osc.type = 'sine';
+    osc.frequency.value = (i % 2 === 0) ? 1175 : 1568;
     gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(0.9, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45);
+    gain.gain.linearRampToValueAtTime(1, start + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
     osc.connect(gain).connect(audioCtx.destination);
-    osc.start(start); osc.stop(start + 0.5);
-  });
+    osc.start(start); osc.stop(start + 0.2);
+  }
 }
 function speakTable(n){
   if(!('speechSynthesis' in window)) return;
-  const utter = new SpeechSynthesisUtterance(`${wt('voiceTablePrefix')} ${n}`);
-  utter.lang = VOICE_LOCALE[waitLang];
+  const utter = new SpeechSynthesisUtterance(`Garson, masa ${n}`);
+  utter.lang = 'tr-TR';
   utter.volume = 1;
   utter.rate = 0.95;
   utter.pitch = 1;
   const voices = speechSynthesis.getVoices();
-  const match = voices.find(v=>v.lang===VOICE_LOCALE[waitLang]) || voices.find(v=>v.lang && v.lang.startsWith(waitLang));
+  const match = voices.find(v=>v.lang==='tr-TR') || voices.find(v=>v.lang && v.lang.startsWith('tr'));
   if(match) utter.voice = match;
   speechSynthesis.speak(utter);
 }
 function alertNewCall(n){
   if(!soundEnabled) return;
   playChime();
-  setTimeout(()=>speakTable(n), 500);
+  setTimeout(()=>speakTable(n), 2000);
 }
 
 function waitHeaderHTML(activeView){
