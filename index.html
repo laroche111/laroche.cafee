@@ -415,20 +415,36 @@ function playChime(){
     osc.start(start); osc.stop(start + 0.2);
   }
 }
-function speakTable(n){
+/* Keep a global reference: browsers can garbage-collect an utterance mid-speech and silently drop it */
+let currentUtter = null;
+function pickTurkishVoice(){
+  const voices = speechSynthesis.getVoices();
+  return voices.find(v=>v.lang==='tr-TR') || voices.find(v=>v.lang && v.lang.toLowerCase().startsWith('tr')) || null;
+}
+function speakTable(n, attempt = 0){
   if(!('speechSynthesis' in window)) return;
+  // Clear any stuck/paused engine state before speaking
+  try { speechSynthesis.cancel(); speechSynthesis.resume(); } catch(e){}
   const utter = new SpeechSynthesisUtterance(`Garson, masa ${n}`);
   utter.lang = 'tr-TR';
   utter.volume = 1;
   utter.rate = 0.95;
   utter.pitch = 1;
-  const voices = speechSynthesis.getVoices();
-  const match = voices.find(v=>v.lang==='tr-TR') || voices.find(v=>v.lang && v.lang.startsWith('tr'));
-  if(match) utter.voice = match;
-  speechSynthesis.speak(utter);
+  const voice = pickTurkishVoice();
+  if(voice) utter.voice = voice;
+  let started = false;
+  utter.onstart = ()=>{ started = true; };
+  utter.onend = ()=>{ if(currentUtter === utter) currentUtter = null; };
+  utter.onerror = ()=>{ if(!started && attempt < 2) setTimeout(()=>speakTable(n, attempt + 1), 300); };
+  currentUtter = utter;
+  // Small delay after cancel() — Chrome drops a speak() issued in the same tick
+  setTimeout(()=>speechSynthesis.speak(utter), 80);
+  // If the engine never started, retry (up to 2 times)
+  setTimeout(()=>{ if(!started && attempt < 2) speakTable(n, attempt + 1); }, 1500);
 }
 function alertNewCall(n){
   if(!soundEnabled) return;
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   playChime();
   setTimeout(()=>speakTable(n), 2000);
 }
@@ -468,6 +484,12 @@ function bindWaitHeader(render){
       if(!soundEnabled){
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         playChime();
+        // Unlock speech inside the user's click (required on mobile/Safari) with a silent utterance
+        if('speechSynthesis' in window){
+          const prime = new SpeechSynthesisUtterance(' ');
+          prime.volume = 0; prime.lang = 'tr-TR';
+          speechSynthesis.speak(prime);
+        }
         soundEnabled = true;
         render();
       }
