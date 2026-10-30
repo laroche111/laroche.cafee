@@ -618,7 +618,9 @@ async function renderPrint(){
   applyDirLang(waitLang);
   clearInterval(pollTimer);
   const app = document.getElementById('app');
-  const savedUrl = localGet(CUSTOMER_URL_KEY) || (location.origin + location.pathname);
+  let savedUrl = localGet(CUSTOMER_URL_KEY) || '';
+  // Vercel is blocked in Turkey: never reuse a saved vercel.app address, default to the page we are on (GitHub Pages)
+  if(!savedUrl || /vercel\.app/i.test(savedUrl)) savedUrl = location.origin + location.pathname;
 
   app.innerHTML = `
     <div class="waiter-app">
@@ -636,10 +638,10 @@ async function renderPrint(){
   const input = document.getElementById('customerUrl');
   const grid = document.getElementById('qrGrid');
   function draw(){
-    let base = input.value.trim().replace(/\/$/, '');
+    let base = input.value.trim().replace(/\/+$/, '');
     grid.innerHTML = '';
     for(let n=1;n<=25;n++){
-      const target = base ? `${base}#/table/${n}` : '';
+      const target = base ? `${base}/#/table/${n}` : '';
       const qrSrc = base ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=6&data=${encodeURIComponent(target)}` : '';
       const card = document.createElement('div');
       card.className = 'qr-card';
