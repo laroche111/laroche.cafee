@@ -163,15 +163,27 @@ const API_BASE = window.LAROCHE_API_BASE || '';
 function localGet(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
 function localSet(key, value){ try{ localStorage.setItem(key, value); }catch(e){} }
 
+/* Render free tier sleeps after ~15 min idle and takes up to ~60s to wake: ping it as soon as a customer page opens */
+function apiWarmUp(){
+  if(!API_BASE) return;
+  try{ fetch(`${API_BASE}/`, {cache:'no-store'}).catch(()=>{}); }catch(e){}
+}
 async function apiCreateCall(table_number){
   if(!API_BASE) return null;
-  try{
-    const res = await fetch(`${API_BASE}/api/calls`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ table_number })
-    });
-    return res.ok ? await res.json() : null;
-  }catch(e){ console.error('apiCreateCall failed', e); return null; }
+  for(let attempt = 0; attempt < 3; attempt++){
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), 65000);
+    try{
+      const res = await fetch(`${API_BASE}/api/calls`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ table_number }), signal: ctrl.signal
+      });
+      clearTimeout(timer);
+      if(res.ok) return await res.json();
+    }catch(e){ clearTimeout(timer); console.error('apiCreateCall failed', e); }
+    await new Promise(r=>setTimeout(r, 1500));
+  }
+  return null;
 }
 async function apiListCalls(){
   if(!API_BASE) return [];
@@ -217,17 +229,17 @@ buildPattern();
 const CUST_DICT = {
   tr:{ pickHeading:"Masanızı seçin", pickSub:"Devam etmek için masa numaranıza dokunun",
     welcomeHeading:"Hoş geldiniz", welcomeSub:"Size nasıl yardımcı olabiliriz?", table:"Masa",
-    menu:"Menüyü Görüntüle", instagram:"Instagram'da Takip Et", call:"Garson Çağır", called:"Çağrıldı ✓",
+    menu:"Menüyü Görüntüle", instagram:"Instagram'da Takip Et", call:"Garson Çağır", called:"Çağrıldı ✓", calling:"Çağrılıyor…", callFailed:"Çağrı gönderilemedi, lütfen tekrar deneyin",
     calledLine:(t)=>`Garson çağrıldı — ${t}'de bildirildi`, footer:(n)=>`Laroche Cafe · Masa ${n}`,
     back:"← Masaları göster", tagline:"Her an daha güzel" },
   ar:{ pickHeading:"اختر طاولتك", pickSub:"اضغط على رقم طاولتك للمتابعة",
     welcomeHeading:"أهلاً بكم", welcomeSub:"كيف يمكننا خدمتكم؟", table:"طاولة",
-    menu:"عرض المنيو", instagram:"تابعنا على إنستغرام", call:"استدعي الجارسون", called:"تم الاستدعاء ✓",
+    menu:"عرض المنيو", instagram:"تابعنا على إنستغرام", call:"استدعي الجارسون", called:"تم الاستدعاء ✓", calling:"جارٍ الاستدعاء…", callFailed:"تعذّر إرسال الاستدعاء، حاول مرة أخرى",
     calledLine:(t)=>`تم استدعاء الجارسون — الساعة ${t}`, footer:(n)=>`لاروش كافيه · طاولة ${n}`,
     back:"← عرض الطاولات", tagline:"كل لحظة أحلى" },
   en:{ pickHeading:"Select your table", pickSub:"Tap your table number to continue",
     welcomeHeading:"Welcome", welcomeSub:"How can we help you today?", table:"Table",
-    menu:"View Menu", instagram:"Follow on Instagram", call:"Call Waiter", called:"Called ✓",
+    menu:"View Menu", instagram:"Follow on Instagram", call:"Call Waiter", called:"Called ✓", calling:"Calling…", callFailed:"Couldn't send the call, please try again",
     calledLine:(t)=>`Waiter called — notified at ${t}`, footer:(n)=>`Laroche Cafe · Table ${n}`,
     back:"← Back to tables", tagline:"Every moment sweeter" }
 };
@@ -357,13 +369,22 @@ async function renderTable(n){
   if(remaining > 0){ setDisabled(remaining, Number(lastCallAt)); }
   else{ callLabel.textContent = ct('call'); }
 
+  apiWarmUp();
   callBtn.addEventListener('click', async ()=>{
     if(callBtn.disabled) return;
-    const callTime = Date.now();
-    localSet(cooldownKey, String(callTime));
+    callBtn.disabled = true;
+    callLabel.textContent = ct('calling');
+    confirmLine.textContent = '';
     const created = await apiCreateCall(n);
-    const effectiveTime = created ? created.called_at : callTime;
-    setDisabled(cooldownMs, effectiveTime);
+    if(!created){
+      // Do NOT start the cooldown or show "called": the waiter never received it
+      callBtn.disabled = false;
+      callLabel.textContent = ct('call');
+      confirmLine.textContent = ct('callFailed');
+      return;
+    }
+    localSet(cooldownKey, String(created.called_at));
+    setDisabled(cooldownMs, created.called_at);
   });
 }
 
